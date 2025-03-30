@@ -1,9 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from models import db, User, Session, ApplicationSettings
+from models import db, User, Session, ApplicationSettings, Role
 from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
@@ -26,23 +30,42 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 def create_default_users():
+    # Create default roles if they don't exist
+    admin_role = Role.query.filter_by(name='Admin').first()
+    if not admin_role:
+        admin_role = Role(name='Admin', color='danger')
+        db.session.add(admin_role)
+        print("Created Admin role")
+
+    teacher_role = Role.query.filter_by(name='Teacher').first()
+    if not teacher_role:
+        teacher_role = Role(name='Teacher', color='primary')
+        db.session.add(teacher_role)
+        print("Created Teacher role")
+
+    student_role = Role.query.filter_by(name='Student').first()
+    if not student_role:
+        student_role = Role(name='Student', color='success')
+        db.session.add(student_role)
+        print("Created Student role")
+
     # Create admin user if it doesn't exist
     if not User.query.filter_by(username='admin').first():
-        admin = User(username='admin', email='admin@example.com', role='admin')
+        admin = User(username='admin', email='admin@example.com', role_id=admin_role.id)
         admin.set_password('admin123')
         db.session.add(admin)
         print("Created admin user")
 
     # Create teacher user if it doesn't exist
     if not User.query.filter_by(username='teacher').first():
-        teacher = User(username='teacher', email='teacher@example.com', role='teacher')
+        teacher = User(username='teacher', email='teacher@example.com', role_id=teacher_role.id)
         teacher.set_password('teacher123')
         db.session.add(teacher)
         print("Created teacher user")
 
     # Create student user if it doesn't exist
     if not User.query.filter_by(username='student').first():
-        student = User(username='student', email='student@example.com', role='student')
+        student = User(username='student', email='student@example.com', role_id=student_role.id)
         student.set_password('student123')
         db.session.add(student)
         print("Created student user")
@@ -114,7 +137,7 @@ def register():
             return redirect(url_for('register'))
             
         # Create new user with student role
-        user = User(username=username, email=email, role='student')
+        user = User(username=username, email=email, role_id=student_role.id)
         user.set_password(password)
         db.session.add(user)
         
@@ -316,6 +339,99 @@ def update_settings():
 def inject_settings():
     settings = ApplicationSettings.query.first()
     return dict(settings=settings)
+
+@app.route('/users')
+@login_required
+def users():
+    if not current_user.role.name == 'Admin':
+        flash('Access denied. Admin privileges required.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Get filter parameters
+    search = request.args.get('search', '')
+    role_id = request.args.get('role', type=int)
+    status = request.args.get('status')
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+
+    # Build query
+    query = User.query
+
+    # Apply filters
+    if search:
+        query = query.filter(
+            db.or_(
+                User.name.ilike(f'%{search}%'),
+                User.email.ilike(f'%{search}%')
+            )
+        )
+    
+    if role_id:
+        query = query.filter(User.role_id == role_id)
+    
+    if status == 'active':
+        query = query.filter(User.is_active == True)
+    elif status == 'inactive':
+        query = query.filter(User.is_active == False)
+
+    # Get pagination
+    pagination = query.order_by(User.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    users = pagination.items
+
+    # Get all roles for filter dropdown
+    roles = Role.query.all()
+
+    return render_template('users.html', users=users, roles=roles, pagination=pagination)
+
+@app.route('/users/<int:user_id>/update', methods=['POST'])
+@login_required
+def update_user(user_id):
+    if not current_user.role.name == 'Admin':
+        flash('Access denied. Admin privileges required.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Update user information
+    user.name = request.form.get('name')
+    user.email = request.form.get('email')
+    user.role_id = request.form.get('role_id', type=int)
+    user.is_active = 'is_active' in request.form
+    
+    try:
+        db.session.commit()
+        flash('User updated successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error updating user. Please try again.', 'danger')
+    
+    return redirect(url_for('users'))
+
+@app.route('/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if not current_user.role.name == 'Admin':
+        flash('Access denied. Admin privileges required.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Prevent deleting the last admin
+    if user.role.name == 'Admin' and User.query.filter_by(role_id=user.role_id).count() <= 1:
+        flash('Cannot delete the last admin user.', 'danger')
+        return redirect(url_for('users'))
+    
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        flash('User deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error deleting user. Please try again.', 'danger')
+    
+    return redirect(url_for('users'))
 
 if __name__ == '__main__':
     app.run(debug=True) 

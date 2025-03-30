@@ -5,13 +5,25 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+class Role(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    color = db.Column(db.String(20), default='primary')  # Bootstrap color class
+    users = db.relationship('User', backref='role', lazy=True)
+
+    def __repr__(self):
+        return f'<Role {self.name}>'
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128))
-    role = db.Column(db.String(20), nullable=False, default='student')  # 'admin', 'teacher', or 'student'
-    
+    role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
         
@@ -19,31 +31,34 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
     
     def is_admin(self):
-        return self.role == 'admin'
+        return self.role.name == 'Admin'
     
     def is_teacher(self):
-        return self.role == 'teacher'
+        return self.role.name == 'Teacher'
     
     def is_student(self):
-        return self.role == 'student'
+        return self.role.name == 'Student'
+
+    def __repr__(self):
+        return f'<User {self.username}>'
 
 class Session(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(20), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     name_ar = db.Column(db.String(100), nullable=False)
-    start_date = db.Column(db.DateTime, nullable=False)
-    end_date = db.Column(db.DateTime, nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __repr__(self):
-        return f'<Session {self.code}>'
+        return f'<Session {self.name}>'
 
 class ApplicationSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    organization_name = db.Column(db.String(200), nullable=False)
-    organization_name_ar = db.Column(db.String(200), nullable=False)
+    organization_name = db.Column(db.String(100), nullable=False)
+    organization_name_ar = db.Column(db.String(100), nullable=False)
     logo_path = db.Column(db.String(255))
     address = db.Column(db.Text)
     address_ar = db.Column(db.Text)
