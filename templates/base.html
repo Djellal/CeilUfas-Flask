@@ -67,6 +67,35 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="/">CeilApp</a>
+            {% if current_user.is_authenticated and current_user.is_admin() %}
+            <div class="dropdown">
+                <button class="btn btn-dark dropdown-toggle" type="button" id="adminDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-gear"></i> Admin
+                </button>
+                <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('settings') }}">
+                            <i class="bi bi-sliders"></i> Application Settings
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('sessions') }}">
+                            <i class="bi bi-calendar3"></i> Sessions
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('users') }}">
+                            <i class="bi bi-people"></i> Users Management
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('locations') }}">
+                            <i class="bi bi-geo"></i> Locations
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>

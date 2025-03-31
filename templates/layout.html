@@ -1,0 +1,87 @@
+<!-- Sidebar -->
+<nav id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+        <h3>CeilApp</h3>
+    </div>
+
+    <ul class="list-unstyled components">
+        <li class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <a href="{{ url_for('dashboard') }}">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </a>
+        </li>
+        
+        {% if current_user.is_authenticated and current_user.is_admin() %}
+        <li class="{% if request.endpoint in ['settings', 'sessions', 'users', 'locations'] %}active{% endif %}">
+            <a href="#adminSubmenu" data-toggle="collapse" class="dropdown-toggle">
+                <i class="fas fa-cog"></i> Admin
+            </a>
+            <ul class="collapse list-unstyled {% if request.endpoint in ['settings', 'sessions', 'users', 'locations'] %}show{% endif %}" id="adminSubmenu">
+                <li class="{% if request.endpoint == 'settings' %}active{% endif %}">
+                    <a href="{{ url_for('settings') }}">
+                        <i class="fas fa-sliders-h"></i> Application Settings
+                    </a>
+                </li>
+                <li class="{% if request.endpoint == 'sessions' %}active{% endif %}">
+                    <a href="{{ url_for('sessions') }}">
+                        <i class="fas fa-calendar-alt"></i> Sessions
+                    </a>
+                </li>
+                <li class="{% if request.endpoint == 'users' %}active{% endif %}">
+                    <a href="{{ url_for('users') }}">
+                        <i class="fas fa-users"></i> Users Management
+                    </a>
+                </li>
+                <li class="{% if request.endpoint == 'locations' %}active{% endif %}">
+                    <a href="{{ url_for('locations') }}">
+                        <i class="fas fa-map-marker-alt"></i> Locations
+                    </a>
+                </li>
+            </ul>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+
+<!-- Page Content -->
+<div id="content">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <button type="button" id="sidebarCollapse" class="btn btn-info">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <div class="ml-auto">
+                {% if current_user.is_authenticated %}
+                <div class="dropdown">
+                    <button class="btn btn-link dropdown-toggle" type="button" id="userDropdown" data-toggle="dropdown">
+                        <i class="fas fa-user"></i> {{ current_user.username }}
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <a class="dropdown-item" href="{{ url_for('logout') }}">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="close" data-dismiss="alert">
+                            <span>&times;</span>
+                        </button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+</div> 

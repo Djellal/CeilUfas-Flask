@@ -1,13 +1,23 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from models import db, User, Session, ApplicationSettings, Role
+from models import db, User, Session, ApplicationSettings, Role, State, Municipality
 from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from functools import wraps
 
 # Load environment variables from .env file
 load_dotenv()
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin():
+            flash('Access denied. Admin privileges required.', 'danger')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
@@ -80,9 +90,21 @@ def create_default_users():
 def create_default_settings():
     if not ApplicationSettings.query.first():
         settings = ApplicationSettings(
-            organization_name="CeilApp",
+            organization_name="Ceil UFAS1",
             organization_name_ar="سيلاب",
-            registration_open=False
+            registration_open=True,
+            current_session_id=None,
+            logo_path=None,
+            address="Université Sétif -1- Campus El Bez, Ex-Faculté de Droit (Actuellement Département d'Agronomie)",
+            address_ar="الجامعة الجزائرية الوطنية المستقلة - الحرم الجامعي الأول - منطقة البز, القسم القديم للقانون (الآن قسم الزراعة)",
+            telephone="(+213) 036.62.09.96",
+            email="ceil@univ-setif.dz",
+            website="https://ceil.univ-setif.dz",
+            facebook="https://www.facebook.com/CEIL.SETIF1UNIVERSITY",
+            linkedin="https://www.linkedin.com/school/universite-ferhat-abbas-setif",
+            youtube="https://www.youtube.com/channel/UCjU0ehPWCFlvCHrfgUt3DOQ",
+            twitter="https://twitter.com/UnivFerhatAbbas",
+            
         )
         db.session.add(settings)
         try:
@@ -432,6 +454,142 @@ def delete_user(user_id):
         flash('Error deleting user. Please try again.', 'danger')
     
     return redirect(url_for('users'))
+
+# Location Management Routes
+@app.route('/locations')
+@login_required
+@admin_required
+def locations():
+    states = State.query.all()
+    municipalities = Municipality.query.all()
+    return render_template('locations.html', states=states, municipalities=municipalities)
+
+@app.route('/states/add', methods=['POST'])
+@login_required
+@admin_required
+def add_state():
+    try:
+        code = request.form.get('code')
+        name = request.form.get('name')
+        name_ar = request.form.get('name_ar')
+
+        # Validate required fields
+        if not all([code, name, name_ar]):
+            flash('All fields are required', 'danger')
+            return redirect(url_for('locations'))
+
+        # Check if code already exists
+        if State.query.filter_by(code=code).first():
+            flash('State code already exists', 'danger')
+            return redirect(url_for('locations'))
+
+        # Create new state
+        state = State(code=code, name=name, name_ar=name_ar)
+        db.session.add(state)
+        db.session.commit()
+
+        flash('State added successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error adding state: {str(e)}', 'danger')
+    return redirect(url_for('locations'))
+
+@app.route('/states/<int:state_id>/update', methods=['POST'])
+@login_required
+@admin_required
+def update_state(state_id):
+    try:
+        state = State.query.get_or_404(state_id)
+        
+        # Update fields
+        state.code = request.form.get('code')
+        state.name = request.form.get('name')
+        state.name_ar = request.form.get('name_ar')
+
+        db.session.commit()
+        flash('State updated successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating state: {str(e)}', 'danger')
+    return redirect(url_for('locations'))
+
+@app.route('/states/<int:state_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_state(state_id):
+    try:
+        state = State.query.get_or_404(state_id)
+        
+        # Check if state has municipalities
+        if state.municipalities:
+            flash('Cannot delete state with associated municipalities', 'danger')
+            return redirect(url_for('locations'))
+        
+        db.session.delete(state)
+        db.session.commit()
+        flash('State deleted successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting state: {str(e)}', 'danger')
+    return redirect(url_for('locations'))
+
+@app.route('/municipalities/add', methods=['POST'])
+@login_required
+@admin_required
+def add_municipality():
+    try:
+        name = request.form.get('name')
+        name_ar = request.form.get('name_ar')
+        state_id = request.form.get('state_id')
+
+        # Validate required fields
+        if not all([name, name_ar, state_id]):
+            flash('All fields are required', 'danger')
+            return redirect(url_for('locations'))
+
+        # Create new municipality
+        municipality = Municipality(name=name, name_ar=name_ar, state_id=state_id)
+        db.session.add(municipality)
+        db.session.commit()
+
+        flash('Municipality added successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error adding municipality: {str(e)}', 'danger')
+    return redirect(url_for('locations'))
+
+@app.route('/municipalities/<int:municipality_id>/update', methods=['POST'])
+@login_required
+@admin_required
+def update_municipality(municipality_id):
+    try:
+        municipality = Municipality.query.get_or_404(municipality_id)
+        
+        # Update fields
+        municipality.name = request.form.get('name')
+        municipality.name_ar = request.form.get('name_ar')
+        municipality.state_id = request.form.get('state_id')
+
+        db.session.commit()
+        flash('Municipality updated successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating municipality: {str(e)}', 'danger')
+    return redirect(url_for('locations'))
+
+@app.route('/municipalities/<int:municipality_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_municipality(municipality_id):
+    try:
+        municipality = Municipality.query.get_or_404(municipality_id)
+        db.session.delete(municipality)
+        db.session.commit()
+        flash('Municipality deleted successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting municipality: {str(e)}', 'danger')
+    return redirect(url_for('locations'))
 
 if __name__ == '__main__':
     app.run(debug=True) 

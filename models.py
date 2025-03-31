@@ -78,4 +78,33 @@ class ApplicationSettings(db.Model):
     current_session = db.relationship('Session', foreign_keys=[current_session_id])
 
     def __repr__(self):
-        return f'<ApplicationSettings {self.organization_name}>' 
+        return f'<ApplicationSettings {self.organization_name}>'
+
+class State(db.Model):
+    __tablename__ = 'states'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(10), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    name_ar = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship with Municipality
+    municipalities = db.relationship('Municipality', backref='state', lazy=True, cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<State {self.name}>'
+
+class Municipality(db.Model):
+    __tablename__ = 'municipalities'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    name_ar = db.Column(db.String(100), nullable=False)
+    state_id = db.Column(db.Integer, db.ForeignKey('states.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Municipality {self.name}>' 
